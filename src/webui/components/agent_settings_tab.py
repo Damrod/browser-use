@@ -6,6 +6,7 @@ from gradio.components import Component
 from typing import Any, Dict, Optional
 from src.webui.webui_manager import WebuiManager
 from src.utils import config
+from src.utils.llm_provider import fetch_ollama_models_sync
 import logging
 from functools import partial
 
@@ -14,13 +15,39 @@ logger = logging.getLogger(__name__)
 
 def update_model_dropdown(llm_provider):
     """
-    Update the model name dropdown with predefined models for the selected provider.
+    Update the model name dropdown with models for the selected provider.
+    For Ollama, fetch models dynamically from the API endpoint.
+    For other providers, use predefined models.
     """
-    # Use predefined models for the selected provider
-    if llm_provider in config.model_names:
-        return gr.Dropdown(choices=config.model_names[llm_provider], value=config.model_names[llm_provider][0],
+    logger.info(f"update_model_dropdown called with provider: {llm_provider}")
+    
+    if llm_provider == "ollama":
+        # Fetch models dynamically from Ollama API
+        try:
+            ollama_base_url = os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434")
+            logger.info(f"Fetching Ollama models from: {ollama_base_url}")
+            
+            models = fetch_ollama_models_sync(ollama_base_url)
+            logger.info(f"Retrieved {len(models)} Ollama models: {models}")
+            
+            if models:
+                return gr.Dropdown(choices=models, value=models[0], interactive=True)
+            else:
+                logger.warning("No models returned from Ollama API")
+                return gr.Dropdown(choices=[], value="", interactive=True, allow_custom_value=True)
+                
+        except Exception as e:
+            logger.error(f"Error fetching Ollama models: {e}")
+            return gr.Dropdown(choices=[], value="", interactive=True, allow_custom_value=True)
+    
+    elif llm_provider in config.model_names:
+        # Use predefined models for other providers
+        hardcoded_models = config.model_names[llm_provider]
+        logger.info(f"Using hardcoded models for {llm_provider}: {hardcoded_models}")
+        return gr.Dropdown(choices=hardcoded_models, value=hardcoded_models[0],
                            interactive=True)
     else:
+        logger.warning(f"No models found for provider: {llm_provider}")
         return gr.Dropdown(choices=[], value="", interactive=True, allow_custom_value=True)
 
 

@@ -48,8 +48,60 @@ from langchain_openai import AzureChatOpenAI, ChatOpenAI
 from langchain_ibm import ChatWatsonx
 from langchain_aws import ChatBedrock
 from pydantic import SecretStr
+import httpx
+import asyncio
+
+import logging
 
 from src.utils import config
+
+logger = logging.getLogger(__name__)
+
+
+async def fetch_ollama_models(base_url: str | None = None) -> list[str]:
+    """
+    Fetch available models from Ollama API endpoint.
+    
+    Args:
+        base_url: Optional base URL for Ollama endpoint. Defaults to OLLAMA_ENDPOINT env var.
+    
+    Returns:
+        List of model names available from Ollama
+    """
+    if base_url is None:
+        base_url = os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434")
+    
+    api_url = f"{base_url.rstrip('/')}/api/tags"
+    
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(api_url)
+            response.raise_for_status()
+            
+            data = response.json()
+            models = data.get("models", [])
+            
+            # Extract just the model names
+            model_names = [model["name"] for model in models]
+            return model_names
+            
+    except Exception as e:
+        logger.warning(f"Failed to fetch Ollama models from {api_url}: {e}")
+        # Return empty list instead of hardcoded fallback
+        return []
+
+
+def fetch_ollama_models_sync(base_url: str | None = None) -> list[str]:
+    """
+    Synchronous version of fetch_ollama_models for Gradio compatibility.
+    """
+    try:
+        # Run the async function in the current event loop
+        loop = asyncio.get_event_loop()
+        return loop.run_until_complete(fetch_ollama_models(base_url or ""))
+    except RuntimeError:
+        # If no event loop, create a new one
+        return asyncio.run(fetch_ollama_models(base_url or ""))
 
 
 class DeepSeekR1ChatOpenAI(ChatOpenAI):
