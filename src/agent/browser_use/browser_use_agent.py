@@ -4,6 +4,14 @@ import asyncio
 import logging
 import os
 
+# Import the patch for browser-use memory configuration
+try:
+    from ..memory.patch import patch_embedder_config_dict
+    patch_embedder_config_dict()
+except ImportError:
+    # If patch fails, continue without it
+    pass
+
 # from lmnr.sdk.decorators import observe
 from browser_use.agent.gif import create_history_gif
 from browser_use.agent.service import Agent, AgentHookFunc
